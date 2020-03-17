@@ -2,18 +2,21 @@ package dwdtoken
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jws"
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/urlfetch"
+
+	credentials "cloud.google.com/go/iam/credentials/apiv1"
+	credentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 )
 
 func AppEngineDWDTokenSource(ctx context.Context, sub string, scope ...string) oauth2.TokenSource {
@@ -26,11 +29,12 @@ type gaeDwdSource struct {
 	scopes []string
 }
 
+func gae_project() string {
+	return os.Getenv("GOOGLE_CLOUD_PROJECT")
+}
+
 func (dwd gaeDwdSource) Token() (*oauth2.Token, error) {
-	email, err := appengine.ServiceAccount(dwd.ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to Fetch Service Account Name")
-	}
+	email := fmt.Sprintf("%s@appspot.gserviceaccount.com", gae_project())
 
 	iat := time.Now()
 	exp := iat.Add(time.Hour)
@@ -47,8 +51,17 @@ func (dwd gaeDwdSource) Token() (*oauth2.Token, error) {
 		Typ:       "JWT",
 	}
 	signer := func(d []byte) ([]byte, error) {
-		_, sig, err := appengine.SignBytes(dwd.ctx, d)
-		return sig, err
+		c, err := credentials.NewIamCredentialsClient(dwd.ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := c.SignBlob(dwd.ctx, &credentialspb.SignBlobRequest{
+			Name:    fmt.Sprintf("projects/-/serviceAccounts/%s", email),
+			Payload: d,
+		})
+
+		return resp.SignedBlob, err
 	}
 	msg, err := jws.EncodeWithSigner(hdr, cs, signer)
 	if err != nil {
@@ -59,7 +72,7 @@ func (dwd gaeDwdSource) Token() (*oauth2.Token, error) {
 		"grant_type": {"urn:ietf:params:oauth:grant-type:jwt-bearer"},
 		"assertion":  {msg},
 	}
-	data, err := gaePost(dwd.ctx, google.Endpoint.TokenURL, postData)
+	data, err := fullPost(dwd.ctx, google.Endpoint.TokenURL, postData)
 	if err != nil {
 		return nil, fmt.Errorf("GAE DWD Access Token: Failed Requesting Token: %s", err)
 	}
@@ -81,10 +94,12 @@ type GoogleToken struct {
 	AccessToken string `json:"access_token"`
 }
 
-func gaePost(ctx context.Context, url string, data url.Values) ([]byte, error) {
+func fullPost(ctx context.Context, url string, data url.Values) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
-	client := urlfetch.Client(ctx)
+	client := http.Client{
+		Timeout: time.Second,
+	}
 
 	response, err := client.PostForm(url, data)
 	if err != nil {
