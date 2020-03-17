@@ -15,6 +15,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jws"
 
+	"cloud.google.com/go/compute/metadata"
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	credentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 )
@@ -34,7 +35,10 @@ func gae_project() string {
 }
 
 func (dwd gaeDwdSource) Token() (*oauth2.Token, error) {
-	email := fmt.Sprintf("%s@appspot.gserviceaccount.com", gae_project())
+	email, err := metadata.Get("instance/service-accounts/default/email")
+	if err != nil {
+		return nil, err
+	}
 
 	iat := time.Now()
 	exp := iat.Add(time.Hour)
