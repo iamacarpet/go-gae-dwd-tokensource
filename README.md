@@ -8,14 +8,11 @@ package main
 import (
     "html/template"
     "net/http"
+    "context"
 
-    "golang.org/x/net/context"
     "golang.org/x/oauth2"
-    "google.golang.org/appengine"
-    "google.golang.org/appengine/log"
-    "google.golang.org/appengine/user"
-    "google.golang.org/appengine/urlfetch"
     "google.golang.org/api/admin/directory/v1"
+    
     "github.com/iamacarpet/go-gae-dwd-tokensource"
 
     "private/model"
@@ -28,7 +25,7 @@ type AuthCheckMiddleware struct {
 }
 
 func (c *AuthCheckMiddleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-    ctx := appengine.NewContext(r)
+    ctx := r.Context()
 
     if u := user.Current(ctx); u == nil {
         // If no user logged in, redirect to login.
