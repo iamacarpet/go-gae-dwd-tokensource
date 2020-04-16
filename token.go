@@ -64,6 +64,9 @@ func (dwd gaeDwdSource) Token() (*oauth2.Token, error) {
 			Name:    fmt.Sprintf("projects/-/serviceAccounts/%s", email),
 			Payload: d,
 		})
+		if err != nil {
+			return nil, err
+		}
 
 		return resp.SignedBlob, err
 	}
