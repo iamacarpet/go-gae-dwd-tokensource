@@ -1,4 +1,4 @@
-module github.com/iamacarpet/go-gae-dwd-tokensource
+module github.com/iamacarpet/go-gae-dwd-tokensource/v2
 
 go 1.13
 
