@@ -15,7 +15,7 @@ import (
     
     "github.com/iamacarpet/go-gae-dwd-tokensource"
 
-    "private/model"
+    "private/model/user"
 )
 
 type AuthCheckMiddleware struct {
@@ -27,7 +27,7 @@ type AuthCheckMiddleware struct {
 func (c *AuthCheckMiddleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
     ctx := r.Context()
 
-    if u := user.Current(ctx); u == nil {
+    if u := user.Current(r); u == nil {
         // If no user logged in, redirect to login.
         url, _ := user.LoginURL(ctx, r.URL.Path)
         http.Redirect(rw, r, url, 302)
@@ -38,7 +38,7 @@ func (c *AuthCheckMiddleware) ServeHTTP(rw http.ResponseWriter, r *http.Request,
         // Example of rendering a 403 page.
         errorTemplate := template.Must(template.ParseFiles("views/403.html"))
         c.User = u
-        c.UserThumbURL, _ = model.GetAnonymousUserThumbnail(ctx, u.Email)
+        c.UserThumbURL, _ = user.GetAnonymousUserThumbnail(ctx, u.Email)
         c.LogoutURL, _ = user.LogoutURL(ctx, r.URL.Path)
 
         rw.WriteHeader(403)
@@ -57,7 +57,6 @@ func (c *AuthCheckMiddleware) isUserAllowed(ctx context.Context, email string) b
 func (c *AuthCheckMiddleware) groupMembershipCheck(ctx context.Context, group string, email string) bool {
     transport := &oauth2.Transport{
         Source: dwdtoken.AppEngineDWDTokenSource(ctx, "admin-user@gsuite-domain.com", admin.AdminDirectoryUserReadonlyScope, admin.AdminDirectoryGroupMemberReadonlyScope),
-        Base:   &urlfetch.Transport{Context: ctx},
     }
     client := &http.Client{Transport: transport}
 
